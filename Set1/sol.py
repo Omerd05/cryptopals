@@ -2,6 +2,7 @@ import base64
 from string import ascii_lowercase as alc
 from binascii import hexlify
 import math
+from Crypto.Cipher import AES
 
 INF = 1e9
 
@@ -145,11 +146,48 @@ def BreakingRepKeyXOR(filename):
             print(f"{counter}'th candidate is {bytes.fromhex(result)}",file=f)
             counter+=1
 
-    
+
     return result_keys
 
+def decryptAESinECB(filename,key):
+    file = open(filename,"r")
+    ciphertext = base64.b64decode(file.read().strip().encode())
+
+    cipher_dec = AES.new(key,mode=AES.MODE_ECB)
+    decrypted = cipher_dec.decrypt(ciphertext)
+
+    return decrypted
+
+def detectAESinECB(filename):
+    '''Ideas - 
+    we assume the plaintext is some reasonable text from the english language
+    thus the ciphertext where the same 16 byte ciphertext will appear several times
+    
+    '''
+
+    file_in = open(filename,"r")
+    #file_out = open("output.txt","w")
+    counter = 0
+    suspect = -1
+    for line in file_in:
+        decoded_line = bytes.fromhex(line)
+        seen = dict()
+        for i in range(math.ceil(len(decoded_line)/16)):
+            if decoded_line[16*i:16*(i+1)] not in seen.keys():
+                seen[decoded_line[16*i:16*(i+1)]] = 0
+            seen[decoded_line[16*i:16*(i+1)]] += 1
+        
+        if len(seen) < math.ceil(len(decoded_line)/16):
+            suspect = counter
+            #print(f"{counter}'th line is sus")
+            #print(len(seen))
+        counter+=1
+    return suspect
+
 if __name__ == "__main__":
-    candidate_keys = BreakingRepKeyXOR("input.txt")
+    print(detectAESinECB("input.txt"))
+    #decryptAESinECB("input.txt",b'YELLOW SUBMARINE')
+    #candidate_keys = BreakingRepKeyXOR("input.txt")
     #print(HammingDist("this is a test","wokka wokka!!!"))
     
     #plaintext = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
