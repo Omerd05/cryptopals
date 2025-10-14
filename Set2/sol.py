@@ -100,7 +100,7 @@ def detectBlockCipher(ciphertext):
     else:
         return "CBC"
 
-
+'''Challenge 12'''
 #AES-128-ECB(plaintext || unknown-string, random-key)
 def constKeyECBEncryption(plaintext) -> bytes:
     global global_key, unkownstring
@@ -170,7 +170,9 @@ def decrypt_profile_for_and_parse(ciphertext) -> str:
     return decryptAESECB(ciphertext,global_key).decode()
 
 
-'''Challenge 13 - Idea
+'''Challenge 13
+
+Idea
 we'll replace the ECB block of user with ECB of admin
 more precisely, we'll choose username of length s.t. "user" will be the first (and only) of its block
 now, we would like to replace its block with one of "admin" as first and only. 
@@ -184,6 +186,9 @@ def challenge13():
     payload = encrypted_profile_for("admin" + "\0"*11)
     result = poc[:-16] + payload[:16]
     return result
+
+
+'''Challenge 14'''
 
 #AES-128-ECB(random-prefix || attacker-controlled || target-bytes, random-key)
 def randomPaddingConstKeyECBEncryption(plaintext) -> bytes:
@@ -209,6 +214,7 @@ def detectIndicatorIndex(ciphertext):
             cur_blocks.add(ciphertext[16*i:16*(i+1)])
 
     return indicator_idx
+
 
 
 def challenge14():
@@ -274,7 +280,61 @@ to move to next block, we consider the block next-next to it, and so on
 
 '''
 
+'''Challenge 15'''
+
+def PCKS7_unpadding(plaintext) -> str:
+    if len(plaintext) % 16 != 0:
+        raise('Invalid padding - unaligned block length')
+    indicator = max((i for i,ch in enumerate(plaintext) if ch > chr(0x0f)))
+    if indicator == len(plaintext)-1 or plaintext[indicator+1:] != chr(16-(indicator+1)%16)*(16-(indicator+1)%16):
+        raise TypeError('Invalid padding - padded values are incorrect')
+    return plaintext[:indicator+1]
+    
+
+'''Challenge 16'''
+'''Idea
+If we flipped the j'th bit in the i'th block, then 
+New_Pi = ?????
+New_Pi+1 = Real_Pi+1 but the j'th bit is flipped.
+Say we were to encrypt AAA...AA for some long enough contiguous A sequence
+we'll denote E(A...A) as C
+we know what are Pi,Pi+1, all left is to take the XOR between Pi+1 and ;admin=true; (padded)
+and inflict these difference on Ci (i.e. we'll modify Ci to be Ci ^ difference)
+
+'''
+
+def data_padding(someinput):
+    global global_key
+    trans_table = str.maketrans({';' : '%3B', '=':'%3D'})
+    someinput = someinput.translate(trans_table)
+    prefix = "comment1=cooking%20MCs;userdata="
+    suffix = ";comment2=%20like%20a%20pound%20of%20bacon"
+
+    return encryptAESCBC128((prefix+someinput+suffix).encode(),global_key)
+
+def decryptIsAdmin(ciphertext) -> bool:
+    global global_key
+    plaintext = decryptAESCBC128(ciphertext,global_key)
+
+    return b';admin=true;' in plaintext
+
+def challenge16():
+    global global_key
+    ciphertext = data_padding('A'*32)
+    payload = b'A'*32
+
+    diff = fixedLenXOR(payload[16:],b';admin=true;\x04\x04\x04\x04')
+    ciphertext_modified = ciphertext[:32]+fixedLenXOR(ciphertext[32:32+16],diff)+ciphertext[32+16:]
+    
+    return ciphertext_modified
+
 if __name__ == "__main__":
+    if len(global_key) == 0:
+        global_key = genRandKey16()
+
+    print(decryptIsAdmin(challenge16()))
+    #print(data_padding("cool="))
+    #print(PCKS7_unpadding(PCKS7Padding(b"ICE ICE BABY",16).decode()))
     #print(challenge14())
     #print(decrypt_profile_for_and_parse(challenge13()))
     #print(profile_for("pwn"))
